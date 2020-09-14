@@ -1,63 +1,75 @@
-// This is a basic example strategy for Gekko.
-// For more information on everything please refer
-// to this document:
-//
-// https://gekko.wizb.it/docs/strategies/creating_a_strategy.html
-//
-// The example below is pretty bad investment advice: on every new candle there is
-// a 10% chance it will recommend to change your position (to either
-// long or short).
+/*
 
-var log = require('../core/log');
+  StepGains - Crypto49er 2018-04-21
 
-// Let's create our own strat
+ */
+// helpers
+var _ = require('lodash');
+var log = require('../core/log.js');
+var watchPrice = 0.0;
+var lowestPrice = 0.0;
+var sellPrice = 0.0;
+var advised = false;
+
+// Let's create our own buy and sell strategy 
 var strat = {};
 
-// Prepare everything our method needs
+// Prepare everything our strat needs
 strat.init = function() {
-  this.input = 'candle';
-  this.currentTrend = 'long';
-  this.requiredHistory = 0;
+    // how many candles do we need as a base
+  // before we can start giving advice?
+  this.requiredHistory = this.tradingAdvisor.historySize;
 }
 
 // What happens on every new candle?
 strat.update = function(candle) {
-
-  // Get a random number between 0 and 1.
-  this.randomNumber = Math.random();
-
-  // There is a 10% chance it is smaller than 0.1
-  this.toUpdate = this.randomNumber < 0.1;
+  // Display close price in terminal
+  log.debug('candle time', candle.start);
+  log.debug('candle close price:', candle.close);
 }
 
 // For debugging purposes.
 strat.log = function() {
-  log.debug('calculated random number:');
-  log.debug('\t', this.randomNumber.toFixed(3));
+
 }
 
 // Based on the newly calculated
 // information, check if we should
 // update or not.
-strat.check = function() {
+strat.check = function(candle) {
 
-  // Only continue if we have a new update.
-  if(!this.toUpdate)
-    return;
+    if(watchPrice == 0){
+        watchPrice = candle.close * 0.98;
+    }
+    if(candle.close <= watchPrice){
+        lowestPrice = candle.close;
+    }
+    if(candle.close > lowestPrice && !advised){
+       this.advice({
+  direction: 'long', // or short
+  trigger: { // ignored when direction is not "long"
+    type: 'trailingStop',
+    trailPercentage: 5
 
-  if(this.currentTrend === 'long') {
+        log.debug('Buying at', candle.close);
+        sellPrice = candle.close * 1.03;
+        advised = true;
+    }
+    if(candle.close > sellPrice && watchPrice != 0 && lowestPrice != 0){
+        this.advice({
+  direction: 'short', // or short
+  trigger: { // ignored when direction is not "long"
+    type: 'trailingStop',
+    trailPercentage: 5
 
-    // If it was long, set it to short
-    this.currentTrend = 'short';
-    this.advice('short');
+        log.debug('Selling at', candle.close);
+        watchPrice = 0;
+        lowestPrice = 0;
+        buyPrice = 0;
+        sellPrice = 0;
+        advised = false;
+    }
 
-  } else {
-
-    // If it was short, set it to long
-    this.currentTrend = 'long';
-    this.advice('long');
-
-  }
 }
 
 module.exports = strat;
